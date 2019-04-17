@@ -8,7 +8,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public class CountDownLatch {
     private final Lock changesZeroeness;
     private final Condition becomesPositive;
-    private final Lock becomesZeroLock;
     private final Condition becomesZero;
 
     private final Lock modifyValue;
@@ -19,7 +18,6 @@ public class CountDownLatch {
         modifyValue = new ReentrantLock();
 
         changesZeroeness = new ReentrantLock();
-        becomesZeroLock = new ReentrantLock();
         becomesPositive = changesZeroeness.newCondition();
         becomesZero = changesZeroeness.newCondition();
 
@@ -29,33 +27,38 @@ public class CountDownLatch {
     }
 
     public void await() throws InterruptedException {
-        becomesZeroLock.lock();
-        if (value == 0) {
-            becomesZeroLock.unlock();
-            return;
-        }
+        changesZeroeness.lock();
+        try {
+            if (value == 0) {
+                changesZeroeness.unlock();
+                return;
+            }
 
-        becomesZero.wait();
-        becomesZeroLock.unlock();
+            becomesZero.await();
+        } finally {
+            changesZeroeness.unlock();
+        }
     }
 
     public void countDown() throws InterruptedException {
         changesZeroeness.lock();
-        while (value == 0) {
-            becomesPositive.wait();
+        try {
+            while (value == 0) {
+                becomesPositive.await();
+            }
+            // now value > 0
+
+            modifyValue.lock();
+
+            value--;
+            if (value == 0) {
+                becomesZero.signalAll();
+            }
+
+            modifyValue.unlock();
+        } finally {
+            changesZeroeness.unlock();
         }
-        // now value > 0
-
-        modifyValue.lock();
-
-        value--;
-        if (value == 0) {
-            becomesZero.notifyAll();
-        }
-
-        modifyValue.unlock();
-
-        changesZeroeness.unlock();
     }
 
     public void countUp() {
@@ -63,7 +66,7 @@ public class CountDownLatch {
         if (value == 0) {
             changesZeroeness.lock(); // only if value == 0
             value++;
-            becomesPositive.notify();
+            becomesPositive.signal();
             changesZeroeness.unlock();
         } else {
             value++;

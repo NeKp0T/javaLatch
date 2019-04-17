@@ -14,14 +14,19 @@ public class CountDownLatchTest {
         private AtomicInteger down;
         private CountDownLatch latch;
 
+        Task(int delay, AtomicInteger up, AtomicInteger down, CountDownLatch latch) {
+            this.delay = delay;
+            this.up = up;
+            this.down = down;
+            this.latch = latch;
+        }
 
         @Override
         public void run() {
             try {
                 Thread.sleep(delay);
-                down.incrementAndGet();
                 latch.countDown();
-                up.incrementAndGet();
+                down.incrementAndGet();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -37,16 +42,14 @@ public class CountDownLatchTest {
 
         CountDownLatch latch = new CountDownLatch(threadCounter);
         for (int i = 0; i < threadCounter; i++) {
-            //var worker = new Throwable(new Task(i * 1000, latch, down, up, "WORKER" + i)));
-            //worker.start();
+            var worker = new Thread(new Task(i * 100, up, down, latch));
+            worker.start();
         }
 
         // Main thread will wait until all thread finished
         latch.await();
 
-        assertEquals(down, threadCounter);
-
-        System.out.println(Thread.currentThread().getName() + " has finished");
+        assertEquals(threadCounter, down.get());
     }
 
     @Test
@@ -54,21 +57,13 @@ public class CountDownLatchTest {
 
         var down = new AtomicInteger(0);
         var up = new AtomicInteger(0);
-        int threadCounter = 10;
+        int threadCounter = 1;
 
-        CountDownLatch latch = new CountDownLatch(threadCounter + 1);
-        for (int i = 0; i < threadCounter; i++) {
-           // Worker worker = new Worker(i * 1000, latch, down, up, "WORKER" + i);
-            //worker.start();
-        }
-
-
-        // Main thread will wait until all thread finished
+        CountDownLatch latch = new CountDownLatch(0);
+        var worker = new Thread(new Task(100, up, down, latch));
+        worker.start();
+        latch.countUp();
         latch.await();
-
-        assertEquals(down, threadCounter);
-
-        System.out.println(Thread.currentThread().getName() + " has finished");
-
+        assertEquals(threadCounter, down.get());
     }
 }
