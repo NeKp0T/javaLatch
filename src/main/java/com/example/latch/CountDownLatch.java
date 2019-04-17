@@ -23,7 +23,9 @@ public class CountDownLatch {
         becomesPositive = changesZeroeness.newCondition();
         becomesZero = changesZeroeness.newCondition();
 
+        modifyValue.lock();
         value = startingValue;
+        modifyValue.unlock();
     }
 
     public void await() throws InterruptedException {
